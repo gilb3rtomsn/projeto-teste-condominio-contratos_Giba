@@ -17,5 +17,7 @@
   "function removerUnidade(uint256)",
   "function retornaVotante(uint256) view returns (address)",
   "function sindico() view returns (address)",
-  "function unidades(uint256) view returns (address, address)"
+  "function unidades(uint256) view returns (address, address)",
+  "function retornaUnidadesDoProprietario(uint256) view returns (address, address)"
+  
 ]

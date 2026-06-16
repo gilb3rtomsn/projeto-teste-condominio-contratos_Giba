@@ -10,8 +10,9 @@ contract Condominio {
         address autorizado;
     }
 
-    // @info Mapeamento de unidades
-    mapping(uint256 => Unidade) public unidades;
+    // @info Mapeamento de proprietários para suas unidades
+    mapping(address => uint256[]) private unidadesPorProprietario;
+    mapping(uint256 => uint256) private indexPorUnidade;
 
     // @info Mapeamento de proprietários para suas unidades
     mapping(address => uint256[]) private unidadesPorProprietario;
@@ -99,10 +100,7 @@ contract Condominio {
     ) public somenteSindico {
         require(_unidade > 0, "Unidade invalida");
         require(_proprietario != address(0), "Proprietario invalido");
-        require(
-            unidades[_unidade].proprietario == address(0),
-            "Unidade existente"
-        );
+        require(unidades[_unidade].proprietario == address(0), "Unidade existente");
 
         // @dev Adiciona a unidade
         unidades[_unidade] = Unidade(_proprietario, address(0));
@@ -115,6 +113,7 @@ contract Condominio {
     // @info Função para atualizar o proprietário de uma unidade
     // @dev Somente o síndico pode atualizar o proprietário de uma unidade
     // @param _unidade Número da unidade
+    // @param _proprietarioNovo Endereço do Novo Proprietario
     // @param _proprietarioNovo Endereço do novo proprietário
     function atualizarProprietario(
         uint256 _unidade,
@@ -126,10 +125,7 @@ contract Condominio {
         address proprietarioAntigo = unidade.proprietario;
 
         require(proprietarioAntigo != address(0), "Unidade inexistente");
-        require(
-            proprietarioAntigo != _proprietarioNovo,
-            "Mesmo proprietario"
-        );
+        require(proprietarioAntigo != _proprietarioNovo, "Mesmo proprietario");
 
         // @dev Atualiza o proprietário
         unidade.proprietario = _proprietarioNovo;
@@ -151,9 +147,10 @@ contract Condominio {
     function removerUnidade(uint256 _unidade) public somenteSindico {
         Unidade storage unidade = unidades[_unidade];
         require(
-            unidade.proprietario != address(0),
+            unidades[_unidade].proprietario != address(0),
             "Unidade inexistente"
         );
+
 
         _removerUnidadeDoProprietario(unidade.proprietario, _unidade);
         delete unidades[_unidade];
@@ -235,11 +232,12 @@ contract Condominio {
         return unidadesPorProprietario[_proprietario];
     }
 
+    // @info Proprietarios podem ter mais de uma unidade, por isso o uso de Arrays
     function _adicionarUnidadeAoProprietario(
         address _proprietario,
         uint256 _unidade
     ) internal {
-        unidadesPorProprietario[_proprietario].push(_unidade);
+         unidadesPorProprietario[_proprietario].push(_unidade);
         indexPorUnidade[_unidade] = unidadesPorProprietario[_proprietario].length;
     }
 

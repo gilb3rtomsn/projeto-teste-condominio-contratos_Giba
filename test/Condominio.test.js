@@ -244,10 +244,6 @@ describe("Condominio", function () {
         await condominio.connect(sindico).adicionarUnidade(999, addrs[10].address)
       })
 
-      it("Deve ser revertido 1000 pois o addrs[10] já tem unidade", async function (){
-        await expect(condominio.connect(sindico).adicionarUnidade(1000, addrs[10].address)).to.be.revertedWith("Proprietario ja esta adicionado a outra unidade");
-      })
-
       it("Sindico deve atualizar unidade 999 para o endereço addrs[11]", async function (){
         await condominio.connect(sindico).atualizarProprietario(999, addrs[11].address)
       })
