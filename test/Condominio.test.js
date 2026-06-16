@@ -157,7 +157,7 @@ describe("Condominio", function () {
     });
   });
 
-  describe("Proprietarioes", function () {
+  describe("Proprietarios", function () {
     it("Não deve autorizar endereço da unidade se não for proprietario", async function () {
       await expect(
         condominio.connect(addrs[0]).autorizarEndereco(101, addrs[0].address)
