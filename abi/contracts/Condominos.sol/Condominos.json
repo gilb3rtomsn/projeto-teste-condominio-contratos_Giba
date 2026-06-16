@@ -11,7 +11,7 @@
   "function autorizar(address)",
   "function desautorizar()",
   "function desautorizarSe(address)",
-  "function moradores(address) view returns (bool)",
+  "function proprietarios(address) view returns (bool)",
   "function mudarSindico(address)",
   "function removerMorador(address)",
   "function sindico() view returns (address)"

@@ -6,15 +6,16 @@ contract Condominio {
     address public sindico;
 
     struct Unidade {
-        address morador;
+        address proprietario;
         address autorizado;
     }
 
     // @info Mapeamento de unidades
     mapping(uint256 => Unidade) public unidades;
 
-    // @info Mapeamento dos moradores > unidades
-    mapping(address => uint256) public moradores;
+    // @info Mapeamento de proprietários para suas unidades
+    mapping(address => uint256[]) private unidadesPorProprietario;
+    mapping(uint256 => uint256) private indexPorUnidade;
 
     // @info Modificador para somente sindico
     modifier somenteSindico() {
@@ -31,15 +32,15 @@ contract Condominio {
     // @info Evento de adição de unidade
     event UnidadeAdicionada(
         uint256 indexed unidade,
-        address indexed morador,
+        address indexed proprietario,
         address indexed sindico
     );
 
-    // @info Evento de atualização de morador da unidade
-    event MoradorAtualizado(
+    // @info Evento de atualização de proprietário da unidade
+    event ProprietarioAtualizado(
         uint256 indexed unidade,
-        address indexed moradorAntigo,
-        address indexed moradorNovo,
+        address indexed proprietarioAntigo,
+        address indexed proprietarioNovo,
         address sindico
     );
 
@@ -49,14 +50,14 @@ contract Condominio {
     // @info Evento de autorização de endereço
     event EnderecoAutorizado(
         uint256 indexed unidade,
-        address indexed morador,
+        address indexed proprietario,
         address indexed autorizado
     );
 
     // @info Evento de desautorização de endereço
     event EnderecoDesautorizado(
         uint256 indexed unidade,
-        address indexed morador,
+        address indexed proprietario,
         address indexed antigoAutorizado
     );
 
@@ -91,45 +92,55 @@ contract Condominio {
     // @info Função para adicionar uma unidade
     // @dev Somente o síndico pode adicionar uma unidade
     // @param _unidade Número da unidade
-    // @param _morador Endereço do morador
+    // @param _proprietario Endereço do proprietário
     function adicionarUnidade(
         uint256 _unidade,
-        address _morador
+        address _proprietario
     ) public somenteSindico {
         require(_unidade > 0, "Unidade invalida");
-        require(_morador != address(0), "Morador invalido");
-        require(unidades[_unidade].morador == address(0), "Unidade existente");
-        require(moradores[_morador] == 0, "Morador ja esta adicionado a outra unidade");
+        require(_proprietario != address(0), "Proprietario invalido");
+        require(
+            unidades[_unidade].proprietario == address(0),
+            "Unidade existente"
+        );
 
         // @dev Adiciona a unidade
-        unidades[_unidade] = Unidade(_morador, address(0));
-        moradores[_morador] = _unidade;
+        unidades[_unidade] = Unidade(_proprietario, address(0));
+        _adicionarUnidadeAoProprietario(_proprietario, _unidade);
 
         // @dev Emite o evento de adição de unidade
-        emit UnidadeAdicionada(_unidade, _morador, msg.sender);
+        emit UnidadeAdicionada(_unidade, _proprietario, msg.sender);
     }
 
-    // @info Função para atualizar o morador de uma unidade
-    // @dev Somente o síndico pode atualizar o morador de uma unidade
+    // @info Função para atualizar o proprietário de uma unidade
+    // @dev Somente o síndico pode atualizar o proprietário de uma unidade
     // @param _unidade Número da unidade
-    // @param _moradorNovo Endereço do novo morador
-    function atualizarMorador(
+    // @param _proprietarioNovo Endereço do novo proprietário
+    function atualizarProprietario(
         uint256 _unidade,
-        address _moradorNovo
+        address _proprietarioNovo
     ) public somenteSindico {
-        // @dev Recupera o morador antigo
-        address moradorAntigo = unidades[_unidade].morador;
+        require(_proprietarioNovo != address(0), "Proprietario invalido");
 
-        // @dev Atualiza o morador
-        unidades[_unidade].morador = _moradorNovo;
-        moradores[_moradorNovo] = _unidade;
-        delete moradores[moradorAntigo];
+        Unidade storage unidade = unidades[_unidade];
+        address proprietarioAntigo = unidade.proprietario;
 
-        // @dev Emite o evento de atualização de morador
-        emit MoradorAtualizado(
+        require(proprietarioAntigo != address(0), "Unidade inexistente");
+        require(
+            proprietarioAntigo != _proprietarioNovo,
+            "Mesmo proprietario"
+        );
+
+        // @dev Atualiza o proprietário
+        unidade.proprietario = _proprietarioNovo;
+        _removerUnidadeDoProprietario(proprietarioAntigo, _unidade);
+        _adicionarUnidadeAoProprietario(_proprietarioNovo, _unidade);
+
+        // @dev Emite o evento de atualização de proprietário
+        emit ProprietarioAtualizado(
             _unidade,
-            moradorAntigo,
-            _moradorNovo,
+            proprietarioAntigo,
+            _proprietarioNovo,
             msg.sender
         );
     }
@@ -138,13 +149,13 @@ contract Condominio {
     // @dev Somente o síndico pode remover uma unidade
     // @param _unidade Número da unidade
     function removerUnidade(uint256 _unidade) public somenteSindico {
+        Unidade storage unidade = unidades[_unidade];
         require(
-            unidades[_unidade].morador != address(0),
+            unidade.proprietario != address(0),
             "Unidade inexistente"
         );
 
-        // @dev Remove a unidade
-        delete moradores[unidades[_unidade].morador];
+        _removerUnidadeDoProprietario(unidade.proprietario, _unidade);
         delete unidades[_unidade];
 
         // @dev Emite o evento de remoção de unidade
@@ -152,61 +163,41 @@ contract Condominio {
     }
 
     // @info Função para autorizar um endereço
-    // @dev Somente o morador pode autorizar um endereço
+    // @dev Somente o proprietário pode autorizar um endereço
     // @param _unidade Número da unidade
     // @param _autorizado Endereço a ser autorizado
     function autorizarEndereco(uint256 _unidade, address _autorizado) public {
-        // @dev Recupera a unidade
         Unidade storage unidade = unidades[_unidade];
 
-        // @dev Só autoriza se a unidade existir
-        require(unidade.morador != address(0), "Unidade inexistente");
-
-        // @dev Verifica se o morador é o msg.sender
-        require(unidade.morador == msg.sender, "Somente morador");
-
-        // @dev Só autoriza se o endereço for válido
+        require(unidade.proprietario != address(0), "Unidade inexistente");
+        require(unidade.proprietario == msg.sender, "Somente proprietario");
         require(_autorizado != address(0), "Endereco invalido");
-
-        // @dev Só autoriza se não for o próprio morador
         require(
-            _autorizado != unidades[_unidade].morador,
-            "Morador nao pode se autorizar"
+            _autorizado != unidade.proprietario,
+            "Proprietario nao pode se autorizar"
         );
-
-        // @dev Só autoriza se não estiver autorizado
         require(
-            _autorizado != unidades[_unidade].autorizado,
+            _autorizado != unidade.autorizado,
             "Endereco ja autorizado"
         );
 
-        // @dev Autoriza o endereço
         unidade.autorizado = _autorizado;
 
-        // @dev Emite o evento de autorização de endereço
         emit EnderecoAutorizado(_unidade, msg.sender, _autorizado);
     }
 
     // @info Função para desautorizar um endereço
-    // @dev Somente o morador pode desautorizar um endereço
+    // @dev Somente o proprietário pode desautorizar um endereço
     // @param _unidade Número da unidade
-    // @param _autorizado Endereço a ser desautorizado
     function desautorizarEndereco(uint256 _unidade) public {
-        // @dev Recupera a unidade
         Unidade storage unidade = unidades[_unidade];
 
-        // @dev Só autoriza se a unidade existir
-        require(unidade.morador != address(0), "Unidade inexistente");
-
-        // @dev Verifica se o morador é o msg.sender
-        require(unidade.morador == msg.sender, "Somente morador");
+        require(unidade.proprietario != address(0), "Unidade inexistente");
+        require(unidade.proprietario == msg.sender, "Somente proprietario");
 
         address antigoAutorizado = unidade.autorizado;
-
-        // @dev Desautoriza o endereço
         unidade.autorizado = address(0);
 
-        // @dev Emite o evento de desautorização de endereço
         emit EnderecoDesautorizado(_unidade, msg.sender, antigoAutorizado);
     }
 
@@ -214,33 +205,59 @@ contract Condominio {
     // @dev Somente o autorizado pode desautorizar-se
     // @param _unidade Número da unidade
     function desautorizarSe(uint256 _unidade) public {
-        // @dev Recupera a unidade
         Unidade storage unidade = unidades[_unidade];
 
-        // @dev Só autoriza se a unidade existir
-        require(unidade.morador != address(0), "Unidade inexistente");
-
-        // @dev Verifica se o autorizado é o msg.sender
+        require(unidade.proprietario != address(0), "Unidade inexistente");
         require(unidade.autorizado == msg.sender, "Somente autorizado");
 
-        // @dev Desautoriza o endereço
         unidade.autorizado = address(0);
 
-        // @dev Emite o evento de desautorização de endereço
         emit EnderecoDesautorizouSe(_unidade, msg.sender);
     }
 
-    // @info Função para retornar o votante (morador ou autorizado) de uma unidade
+    // @info Função para retornar o votante (proprietário ou autorizado) de uma unidade
     // @param _unidade Número da unidade
-    // @return Morador ou autorizado da unidade
+    // @return Proprietário ou autorizado da unidade
     function retornaVotante(uint256 _unidade) public view returns (address) {
-        // @dev Recupera a unidade
         Unidade storage unidade = unidades[_unidade];
 
-        // @dev Retorna o morador ou autorizado
         return
             unidade.autorizado == address(0)
-                ? unidade.morador
+                ? unidade.proprietario
                 : unidade.autorizado;
+    }
+
+    // @info Retorna todas as unidades de um determinado proprietário
+    // @param _proprietario Endereço do proprietário
+    function retornaUnidadesDoProprietario(
+        address _proprietario
+    ) external view returns (uint256[] memory) {
+        return unidadesPorProprietario[_proprietario];
+    }
+
+    function _adicionarUnidadeAoProprietario(
+        address _proprietario,
+        uint256 _unidade
+    ) internal {
+        unidadesPorProprietario[_proprietario].push(_unidade);
+        indexPorUnidade[_unidade] = unidadesPorProprietario[_proprietario].length;
+    }
+
+    function _removerUnidadeDoProprietario(
+        address _proprietario,
+        uint256 _unidade
+    ) internal {
+        uint256 index = indexPorUnidade[_unidade];
+        require(index != 0, "Unidade nao cadastrada");
+
+        uint256 lastIndex = unidadesPorProprietario[_proprietario].length;
+        if (index != lastIndex) {
+            uint256 lastUnidade = unidadesPorProprietario[_proprietario][lastIndex - 1];
+            unidadesPorProprietario[_proprietario][index - 1] = lastUnidade;
+            indexPorUnidade[lastUnidade] = index;
+        }
+
+        unidadesPorProprietario[_proprietario].pop();
+        delete indexPorUnidade[_unidade];
     }
 }
