@@ -19,5 +19,4 @@
   "function sindico() view returns (address)",
   "function unidades(uint256) view returns (address, address)",
   "function retornaUnidadesDoProprietario(uint256) view returns (address, address)"
-  
 ]
