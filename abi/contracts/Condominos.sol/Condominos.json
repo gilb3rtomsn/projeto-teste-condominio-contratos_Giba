@@ -2,10 +2,10 @@
   "constructor()",
   "event EnderecoAutorizado(address indexed,address indexed)",
   "event EnderecoDesautorizado(address indexed,address indexed)",
-  "event MoradorAdicionado(address indexed,address indexed)",
-  "event MoradorRemovido(address indexed,address indexed)",
+  "event ProprietarioAdicionado(address indexed,address indexed)",
+  "event ProprietarioRemovido(address indexed,address indexed)",
   "event NovoSindico(address indexed,address indexed)",
-  "function adicionarMorador(address)",
+  "function adicionarProprietario(address)",
   "function autorizado(address) view returns (address)",
   "function autorizados(address) view returns (address)",
   "function autorizar(address)",
@@ -13,6 +13,6 @@
   "function desautorizarSe(address)",
   "function proprietarios(address) view returns (bool)",
   "function mudarSindico(address)",
-  "function removerMorador(address)",
+  "function removerProprietario(address)",
   "function sindico() view returns (address)"
 ]
